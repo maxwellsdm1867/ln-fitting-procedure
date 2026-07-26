@@ -156,6 +156,27 @@ ruled out and what's left is science.
 | `numFiltIdentifiable` | `numFilt` is above the resolvable limit, so it's a bound not an estimate |
 | `perEpochR2Spread` | one epoch is dragging the rest — usually a bad trial, not a bad model |
 
+### Checking a fit — always, not on request
+
+`check_fit.py` takes about a second and walks the whole list of ways this model family is set
+up wrong. Run it after every fit, on any script you did not write, and before any write-up:
+
+```bash
+python skills/ln-fitting-procedure/scripts/check_fit.py your_fit.py results.json data.npz
+```
+
+```
+FAIL  filter matches reference   max|diff| vs cascade_fit.make_filter = 1.396e+00
+FAIL  phi in degrees             no /360 or deg2rad near the cosine
+FAIL  nonlinearity grouping      beta*(x + gamma): gamma ends up on the wrong scale
+FAIL  round trip                 reported 0.8849, rebuilds to -0.1315 (gap 1.0164)
+PASS  conv circular_not_causal   ...
+```
+
+It is regression-tested against 13 variants that each differ from a correct script by exactly
+one mistake: every variant flags its own mistake and nothing else, and correct scripts come
+back clean. Run the suite with `python tests/build_check_variants.py && python tests/test_check_fit.py`.
+
 ### The reviewer agent
 
 The plugin also ships a **`cascade-fit-review`** agent — a fast, read-only checker that runs

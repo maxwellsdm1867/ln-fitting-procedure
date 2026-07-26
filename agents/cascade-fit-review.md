@@ -11,9 +11,10 @@ You check cascade-model fits. Read-only: you report, you do not fix and **you ne
 Refitting to check a fit is slow, token-expensive, and answers a different question than "is
 this set up correctly". Everything below is decidable from the artifacts already on disk.
 
-## Step 1 — run the checker
+## Step 1 — run the checker, always
 
-Almost all of your job is one command:
+This is not conditional on anything. It takes about a second, so run it before you form any
+opinion about the fit. Almost all of your job is one command:
 
 ```bash
 python <skill>/scripts/check_fit.py <their_script.py> [results.json] [data.npz]
