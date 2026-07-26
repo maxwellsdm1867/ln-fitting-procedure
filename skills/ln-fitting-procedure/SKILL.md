@@ -21,6 +21,7 @@ allowed-tools:
   - Grep
   - Glob
   - AskUserQuestion
+  - Agent
 ---
 
 # Fitting parametric cascade models to retinal data
@@ -230,16 +231,29 @@ differences — and the two can rank models differently. If you show both, label
 which; quietly mixing a pooled number in a figure with per-epoch numbers in a table is how
 model comparisons go wrong.
 
-## Reviewing a fit — do not refit to check it
+## Reviewing a fit — delegate it, and never refit to check
 
-Checking a fit and producing a fit are different jobs with different costs. **Delegate review
-to the `cascade-fit-review` agent** shipped with this skill: it has a fresh context, which
-matters because whoever produced the fit has absorbed its assumptions, and a bounded budget.
+**Reviewing is the agent's job, not yours. Hand it over.** Any time you are asked to review,
+check, sanity-check or sign off a fit — and any time you have just produced one that is about
+to be reported — spawn `cascade-fit-review` rather than working through the checks in this
+context:
 
 ```
 Agent(subagent_type="cascade-fit-review",
-      prompt="Review the fit in <dir> before it is written up: <script>, <results>.")
+      prompt="Review the fit in <dir> before it is written up: <script>, <results>, <data>.")
 ```
+
+Do this even when you could do it yourself, and especially then. You produced the fit, so you
+have absorbed its assumptions: you already believe the filter is right because you wrote it,
+and that belief is invisible to you. A reviewer with an empty context does not have it. This
+is the same reason a second person reads a manuscript.
+
+It is also cheaper. The agent runs `check_fit.py` and reports; it does not refit, and it does
+not re-derive what you already know. Reviewing inline reliably costs minutes and, measured on
+a script with eight planted mistakes, caught fewer of them (6-7 of 8, a different subset each
+run) than the one-second script catches deterministically (8 of 8).
+
+Reserve inline review for when there is genuinely no agent available.
 
 Either way, the mechanical part is one command and about a second:
 
