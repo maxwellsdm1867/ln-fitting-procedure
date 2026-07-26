@@ -92,8 +92,18 @@ all — is reported rather than defaulted, because a silent default is a guess w
 clothes. Known and checked is quiet; unknown is loud.
 
 A `Stop` hook ships with the plugin and runs the check and the standard figures after any
-turn that writes a `results.json`, so this happens whether or not anyone remembered. It is
-silent when the fit is clean and when it has already reported on that exact file.
+turn that writes a `results.json`, so this happens whether or not anyone remembered. A failed
+check is raised to the model, which then gets a turn to address it; everything else arrives as
+a one-line notice. It says nothing at all once it has reported on that exact file.
+
+It finds fits by walking up to three directories down from where you are, so `out/`,
+`results/` and `analysis/<cell>/` all work, and it reports on **every** results file that is
+new since it last looked — fit six cells in one turn and you get six checks, not one. What it
+looks for is what the fitters already write: `results.json` (or `fit_results.json` /
+`ln_fit.json`) carrying a `params` block, a `*fit*.py` beside it or at the top level, and
+`data.npz` / `cell.npz` / `data.mat` / `cell.mat` next to its `meta.json` for the figures.
+Anything it cannot do it says out loud — a missing `meta.json`, a `.m` fitter it cannot read,
+a cap it hit — because a check that skips quietly is worse than no check.
 
 **Run `check_fit.py` every time — it is on by default, not on request.** It takes about a
 second, so there is no fit cheap enough to justify skipping it and no fit important enough to

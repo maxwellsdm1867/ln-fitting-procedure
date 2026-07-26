@@ -89,10 +89,17 @@ def main():
     ax[2, 0].set_title("5. residuals vs prediction (structure = something systematic missed)")
     ax[2, 0].set_xlabel("prediction")
 
-    ax[2, 1].bar(np.arange(1, len(r2) + 1), r2, color="0.55")
+    # Markers, not bars, because this panel exists to show the SPREAD and a spread of 0.008
+    # is invisible on a 0-1 axis. Rescaling a bar chart off zero would be the misleading fix;
+    # markers carry no baseline, so the axis can follow the data. Padded to at least +/-0.05
+    # so three near-identical epochs do not get magnified into a fake disagreement.
+    ax[2, 1].plot(np.arange(1, len(r2) + 1), r2, "o", ms=7, color="0.35", label="epoch")
     ax[2, 1].axhline(r2.mean(), color="tab:red", lw=1.2,
                      label=f"mean {r2.mean():.3f}")
-    ax[2, 1].set_ylim(0, 1)
+    pad = max(0.05, (r2.max() - r2.min()) * 0.8)
+    ax[2, 1].set_ylim(max(-0.05, r2.min() - pad), min(1.02, r2.max() + pad))
+    ax[2, 1].set_xticks(np.arange(1, len(r2) + 1))
+    ax[2, 1].set_ylabel("variance explained")
     ax[2, 1].set_title(f"6. per-epoch R² (spread {r2.max()-r2.min():.3f})")
     ax[2, 1].set_xlabel("epoch"); ax[2, 1].legend(fontsize=8)
 

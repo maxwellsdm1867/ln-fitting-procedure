@@ -89,9 +89,80 @@ def predict_ln(params, stim, dt):
 
 
 # --------------------------------------------------------------------------- data
-def load_epochs(npz_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp",
+def _is_hdf5(path):
+    """Is this a v7.3 .mat? Decided by the file, not by which exception scipy chose to raise.
+
+    scipy reports a v7.3 file as NotImplementedError or as ValueError('Unknown mat file type')
+    depending on whether MATLAB's 512-byte userblock is present, so dispatching on the
+    exception silently mishandles one of the two. The HDF5 magic number is unambiguous: at the
+    start of the file, or just past the userblock when MATLAB wrote one.
+    """
+    magic = b"\x89HDF\r\n\x1a\n"
+    try:
+        with open(path, "rb") as fh:
+            if fh.read(len(magic)) == magic:
+                return True
+            fh.seek(512)
+            return fh.read(len(magic)) == magic
+    except OSError:
+        return False
+
+
+def _load_mat(path):
+    """Read a MATLAB .mat into the same {name: array} an .npz gives.
+
+    The two loaders already agree on the convention — variables `stim` and `resp`, each
+    (epochs x time), with a sibling meta.json — so a recording saved from the rig needs
+    reading, not converting.
+
+    scipy covers v4 through v7.2 and undoes MATLAB's column-major order on the way out. v7.3
+    is HDF5, which scipy refuses; h5py reads it but hands back the raw on-disk layout, so an
+    (epochs x time) matrix arrives transposed and has to be put back before the orientation
+    check sees it. Getting that wrong would make the loader reject precisely the files it had
+    just learned to read.
+    """
+    if not _is_hdf5(path):
+        from scipy.io import loadmat                   # scipy is already a hard dependency
+        try:
+            d = loadmat(path, squeeze_me=False)
+        except Exception as e:                         # scipy's own errors name no file
+            raise ValueError(f"{path} is not a readable MATLAB file "
+                             f"({type(e).__name__}: {e})") from e
+        return {k: np.asarray(v) for k, v in d.items() if not k.startswith("__")}
+    try:
+        import h5py
+    except ImportError:
+        raise ValueError(
+            f"{path} is a MATLAB v7.3 (HDF5) file, which needs h5py: pip install h5py, or "
+            "re-save it from MATLAB with save(..., '-v7').") from None
+    out, skipped = {}, []
+    try:
+        fh = h5py.File(path, "r")
+    except Exception as e:
+        raise ValueError(f"{path} looks like HDF5 but would not open "
+                         f"({type(e).__name__}: {e})") from e
+    with fh:
+        for k in fh:
+            v = fh[k]
+            if isinstance(v, h5py.Dataset) and v.dtype.kind in "fiu":
+                out[k] = np.asarray(v).T
+            else:
+                skipped.append(k)
+    # A cell array or struct of per-epoch traces is a normal thing to save from MATLAB and
+    # reads as object references here, not numbers. Saying "expected 'stim'" about a variable
+    # that plainly IS in the file sends you looking in the wrong place entirely.
+    if skipped:
+        out["__skipped__"] = skipped
+    return out
+
+
+def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp",
                 meta_path=None, verbose=True):
     """Load, decimate and preprocess — inferring the setup rather than making you restate it.
+
+    Takes a .npz or a MATLAB .mat; both carry `stim` and `resp` as (epochs x time) and read
+    their sampling interval from a sibling meta.json, so the file format is not something you
+    should have to think about.
 
     `raw_dt` is read from the recording's metadata (`sample_interval_s`) when not given, so the
     sampling interval and decimation factor come from the file instead of from memory. The
@@ -101,15 +172,28 @@ def load_epochs(npz_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp"
     Returns (stim, resp, info). Old two-value call sites still work via tuple unpacking of the
     first two elements only if they index; prefer the three-value form.
     """
-    npz_path = str(npz_path)
-    d = np.load(npz_path)
+    data_path = str(data_path)
+    d = _load_mat(data_path) if data_path.lower().endswith(".mat") else np.load(data_path)
+    skipped = list(d.pop("__skipped__", [])) if isinstance(d, dict) else []
     if stim_key not in d or resp_key not in d:
-        raise KeyError(f"{npz_path} has {list(d.keys())}, expected '{stim_key}' and '{resp_key}'")
-    stim, resp = d[stim_key].astype(float), d[resp_key].astype(float)
+        hint = ""
+        if any(k in skipped for k in (stim_key, resp_key)):
+            hint = (f" ({', '.join(k for k in (stim_key, resp_key) if k in skipped)} is in the "
+                    "file but is not a numeric array — a cell array or struct of per-epoch "
+                    "traces has to be concatenated into one (epochs x time) matrix first)")
+        raise KeyError(f"{data_path} has {sorted(set(list(d.keys()) + skipped))}, "
+                       f"expected '{stim_key}' and '{resp_key}'{hint}")
+    # C order, always. loadmat hands back Fortran-ordered arrays (MATLAB is column-major) and
+    # np.mean's summation order follows the strides, so the decimation below lands a few ulp
+    # away for a .mat versus the identical .npz. Tiny, but it means the same recording fits to
+    # different numbers depending on which file it arrived in, which is not a property worth
+    # having.
+    stim = np.ascontiguousarray(d[stim_key], dtype=float)
+    resp = np.ascontiguousarray(d[resp_key], dtype=float)
 
-    info = {"source": npz_path}
+    info = {"source": data_path}
     meta = {}
-    mp = meta_path or os.path.join(os.path.dirname(npz_path), "meta.json")
+    mp = meta_path or os.path.join(os.path.dirname(data_path), "meta.json")
     if os.path.exists(mp):
         try:
             with open(mp) as fh:

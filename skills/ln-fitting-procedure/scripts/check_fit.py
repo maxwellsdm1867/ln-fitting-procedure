@@ -122,10 +122,19 @@ def check_filter(ns, src, rep):
         rep.add("PASS" if d < 1e-9 else "SKIP", "filter t origin",
                 "t starts at dt" if d < 1e-9 else "filter differs for another reason")
 
-    has_deg = bool(re.search(r"/\s*360|deg2rad|np\.radians|\*\s*np\.pi\s*/\s*180", src))
-    rep.add("PASS" if has_deg else "FAIL", "phi in degrees",
-            "found a degrees->radians conversion" if has_deg
-            else "no /360 or deg2rad near the cosine: phi is being used as radians")
+    # This one fails on the ABSENCE of evidence, so it needs the numeric result to speak first.
+    # A script that imports make_filter from cascade_fit has the /360 in the module, not in its
+    # own source, and the regex would fail the recommended path -- the exact penalty uses_module
+    # exists to avoid. A filter that already matched the reference bit for bit has settled the
+    # question; the regex is only the fallback for a hand-rolled filter that did not.
+    if d < 1e-9:
+        rep.add("PASS", "phi in degrees",
+                "filter matches the reference exactly, so phi is in degrees")
+    else:
+        has_deg = bool(re.search(r"/\s*360|deg2rad|np\.radians|\*\s*np\.pi\s*/\s*180", src))
+        rep.add("PASS" if has_deg else "FAIL", "phi in degrees",
+                "found a degrees->radians conversion" if has_deg
+                else "no /360 or deg2rad near the cosine: phi is being used as radians")
 
     overflow = bool(re.search(r"\(\s*t\s*/\s*(abs\()?tau_?[rR]", src)) and \
         not bool(re.search(r"1\s*/\s*\(\s*1\s*\+\s*\(", src))
