@@ -1,24 +1,14 @@
 ---
 name: ln-fitting-procedure
 description: >-
-  Fitting, checking and preparing data for parametric cascade models of neural
-  stimulus-response recordings — LN, GLM with feedback, LNLN, two-arm — in the MATLAB
-  CascadeGraph parameterization: parametric temporal filter, cumulative-normal nonlinearity,
-  staged Nelder-Mead pipeline with random restarts, free-running (never teacher-forced)
-  feedback, per-epoch variance explained. Use it whenever someone is fitting a temporal filter
-  plus a static nonlinearity to a recording, or diagnosing one that misbehaves — "fit an LN
-  model to this cell", "recover the temporal filter", "near-zero variance explained", "the
-  filter looks wrong", "alpha came out the wrong sign", "why is my EV so low on the parasols",
-  "add spike-history feedback", "port this from the MATLAB CascadeGraph code". Use it just as
-  much for getting a recording ready to fit at all — the data contract that declares what a
-  file holds before ten minutes get spent on it: "what units is this response in", "my
-  amplitudes are off by 1000", "the response is in volts not mV", "should this be rectified",
-  "my epochs are stored the wrong way round", "the stimulus and response are called something
-  else in this .mat", "set up meta.json for these cells", "check these recordings before I run
-  the batch". Covers cone, horizontal, bipolar, amacrine, and parasol/midget RGC data, and
-  applies even when "LN model" is never said. Not for generic signal processing or resampling,
+  Fits and checks parametric cascade models — LN, GLM with feedback, LNLN, two-arm — against
+  neural stimulus-response recordings, in the MATLAB CascadeGraph parameterization, and
+  enforces the data contract a recording must satisfy before it is fitted. Deliberately narrow:
+  use it when asked for it by name, when asked to fit or debug a cascade/LN/GLM model in the
+  CascadeGraph parameterization, or when a recording needs its meta.json contract set up or
+  checked. Do not reach for it as general help with filters, units, resampling,
   receptive-field mapping, spike sorting, Hodgkin-Huxley fitting, or neural-network encoding
-  models.
+  models — those overlap in vocabulary and are not what this does.
 allowed-tools:
   - Read
   - Write
