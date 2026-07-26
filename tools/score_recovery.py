@@ -13,7 +13,7 @@ import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "skills", "ln-fitting-procedure", "scripts"))
 import cascade_fit as cf  # noqa: E402
 
 KEYS = list(cf.LN_KEYS)

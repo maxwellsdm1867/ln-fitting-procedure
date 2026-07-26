@@ -30,13 +30,76 @@ ground truth, runs working from prose alone reported R² values of **0.878**, **
 and **−2.958**. Nothing about those outputs looked wrong. Runs using this pipeline reproduced
 their reported parameters exactly, 6/6.
 
+## Install
+
+### As a Claude Code plugin (easiest)
+
+This repo is its own plugin marketplace, so it installs in two commands:
+
+```
+/plugin marketplace add maxwellsdm1867/ln-fitting-procedure
+/plugin install ln-fitting-procedure@ln-fitting-procedure
+```
+
+That's it — the skill is now available in every project. Update later with
+`/plugin marketplace update ln-fitting-procedure`, and remove with
+`/plugin uninstall ln-fitting-procedure`.
+
+### As a plain skill (no plugin system)
+
+Skills are discovered from `~/.claude/skills/` (every project) and
+`<project>/.claude/skills/` (that project only). The skill payload lives in
+`skills/ln-fitting-procedure/`, so clone the repo somewhere and link that subdirectory:
+
+```bash
+git clone https://github.com/maxwellsdm1867/ln-fitting-procedure ~/code/ln-fitting-procedure
+ln -s ~/code/ln-fitting-procedure/skills/ln-fitting-procedure \
+      ~/.claude/skills/ln-fitting-procedure
+```
+
+Or copy it, if you would rather not have a symlink:
+
+```bash
+cp -R ~/code/ln-fitting-procedure/skills/ln-fitting-procedure ~/.claude/skills/
+```
+
+Either way the directory name must stay `ln-fitting-procedure` — that is the skill name.
+
+### Then
+
+Start a new Claude Code session and it should appear in the available-skills list. It
+triggers on its own when you are doing this kind of work — *"fit an LN model to this cell"*,
+*"my fit gives near-zero variance explained"*, *"recover the temporal filter"*, *"the filter
+looks wrong"*, *"port this from the MATLAB CascadeGraph code"*. You do not have to name it.
+
+Wherever it lands, `<skill>` in the instructions means that directory, so
+`<skill>/scripts/matlab` is `~/.claude/skills/ln-fitting-procedure/scripts/matlab`.
+
+### Without Claude Code
+
+Nothing here needs it. `SKILL.md` and `references/` are plain markdown and the fitters are
+ordinary MATLAB and Python — clone the repo and use the two entry points below.
+
+### Check it works before pointing it at real data
+
+```bash
+cd ln-fitting-procedure/tools && python3 generate_data.py    # synthetic cells, known truth
+cd .. && python3 - <<'EOF'
+import sys; sys.path.insert(0, "skills/ln-fitting-procedure/scripts")
+import cascade_fit as cf
+stim, resp, info = cf.load_epochs("data/off_parasol_ln/data.npz")
+res = cf.fit_ln(stim, resp, dt=info["dt"])
+print(res["r2_mean"], res["diagnostics"]["ok"])     # ~0.885 True, ceiling is 0.8844
+EOF
+```
+
 ## Quick start
 
 ### MATLAB
 
 ```matlab
 addpath(genpath('<path to cascadegraph>'));
-addpath('<path to this repo>/scripts/matlab');
+addpath('<path to this repo>/skills/ln-fitting-procedure/scripts/matlab');
 
 [stim, resp, info] = cascadeLoadEpochs('cell.mat');   % dt + units read from meta.json
 out = cascadeFitLN(stim, resp, info.dt);              % LN, 9 params
@@ -53,7 +116,7 @@ disp(out.params); disp(out.r2PerEpoch);
 ### Python
 
 ```python
-import sys; sys.path.insert(0, "<path to this repo>/scripts")
+import sys; sys.path.insert(0, "<path to this repo>/skills/ln-fitting-procedure/scripts")
 from cascade_fit import load_epochs, fit_ln, fit_glm, fit_two_arm
 
 stim, resp, info = load_epochs("cell.npz")
@@ -88,18 +151,20 @@ resolve instead of defaulting. Known and checked is quiet; unknown is loud.
 ## Layout
 
 ```
-SKILL.md                      the procedure, conventions and rationale
-references/
+.claude-plugin/               plugin + marketplace manifests
+skills/ln-fitting-procedure/  the skill payload
+  SKILL.md                    the procedure, conventions and rationale
+  references/
   diagnostics.md              what each warning means; the four exact degeneracies
   glm-feedback.md             free-running feedback, why teacher forcing is never valid
   two-arm-cascade.md          the TwoArmLnHyperNode topology and its degeneracy
-  cascadegraph-parity.md      MATLAB reference equations, parity checklist
-  validation.md               parameter and model recovery (Wilson & Collins 2019)
-scripts/
-  cascade_fit.py              Python: all three fitters, loader, diagnostics
-  matlab/                     MATLAB: the same, calling CascadeGraph's nodes directly
-  parity_dump.m               writes MATLAB reference values...
-  parity_check.py             ...and checks the Python against them
+    cascadegraph-parity.md    MATLAB reference equations, parity checklist
+    validation.md             parameter and model recovery (Wilson & Collins 2019)
+  scripts/
+    cascade_fit.py            Python: all three fitters, loader, diagnostics
+    matlab/                   MATLAB: the same, calling CascadeGraph's nodes directly
+    parity_dump.m             writes MATLAB reference values...
+    parity_check.py           ...and checks the Python against them
 tools/
   generate_data.py            synthetic cells with known ground truth
   generate_data2.py           negative control, two-arm, time-axis trap
