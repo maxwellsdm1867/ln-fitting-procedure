@@ -233,6 +233,32 @@ stimulus length (not truncated and zero-padded):
 x = np.real(np.fft.ifft(np.fft.fft(stim, axis=1) * np.fft.fft(filt)[None, :], axis=1))
 ```
 
+**Verify it rather than reading it.** `verify_convolution` (Python) and `cascadeVerifyConv`
+(MATLAB) probe all three properties of any convolution you did not get from this module, and
+report *which* one is wrong rather than that the numbers differ:
+
+```python
+from cascade_fit import verify_convolution
+verify_convolution(my_conv)     # PASS/FAIL per property, with the measurement
+```
+```matlab
+cascadeVerifyConv(@myConv)
+```
+
+Each probe is built so a correct and an incorrect implementation differ qualitatively: an
+impulse in the last sample must wrap to the start (circular, not causal); a filter tap at a
+long lag must contribute (full length, not truncated); and with one epoch driven and the next
+silent, the silent one must be exactly zero (per-epoch, not flattened). Checked against the
+four common mistakes, each fails exactly the property it violates:
+
+| implementation | circular | full length | per-epoch |
+|---|---|---|---|
+| reference | pass | pass | pass |
+| `np.convolve` / `conv` truncated to N | **fail** | pass | pass |
+| kernel truncated to 60 taps | pass | **fail** | pass |
+| epochs flattened into one vector | pass | pass | **fail** |
+| `mode='same'` | **fail** | **fail** | pass |
+
 Time-domain causal convolution gives a slightly different answer at the edges and will not
 reproduce reference fits. The wrap-around this implies — the end of an epoch's stimulus
 acting as history for its first bins — is deliberate, not a bug to be fixed with zero

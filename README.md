@@ -156,6 +156,11 @@ ruled out and what's left is science.
 | `numFiltIdentifiable` | `numFilt` is above the resolvable limit, so it's a bound not an estimate |
 | `perEpochR2Spread` | one epoch is dragging the rest — usually a bad trial, not a bad model |
 
+Separately, `verify_convolution` / `cascadeVerifyConv` check any convolution you *didn't* get
+from here against the three conventions — circular not causal, filter at full stimulus length,
+per-epoch — and report which one is wrong. Useful when porting, or when someone else's script
+disagrees with yours.
+
 The loader is equally opinionated: it reads the sampling interval and response units from the
 recording's own metadata rather than asking you to restate them, refuses transposed
 `(time × epochs)` arrays and non-integer decimation outright, and *surfaces* anything it can't

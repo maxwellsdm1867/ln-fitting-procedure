@@ -838,6 +838,82 @@ def parameter_recovery(params, stim, dt, resid_sd, n_reps=3, rng=None, glm=False
     return out
 
 
+def verify_convolution(conv_fn, n_points=256, verbose=True):
+    """Check a convolution implementation against the three conventions, without needing MATLAB.
+
+    Point this at your own convolution -- a helper in an existing script, a port, anything you
+    did not get from this module -- and it will tell you WHICH convention is wrong rather than
+    just that the numbers differ. Each property is probed with a stimulus designed so that a
+    correct implementation and a wrong one give qualitatively different answers, not answers
+    that differ in the sixth decimal.
+
+        from cascade_fit import verify_convolution, circular_conv
+        verify_convolution(circular_conv)                 # the reference: all pass
+        verify_convolution(lambda s, f: my_conv(s, f))    # yours
+
+    The three properties, and why each matters:
+
+    1. CIRCULAR, not time-domain causal. The end of an epoch's stimulus is the history for its
+       first bins. Probe: an impulse in the last sample must produce a response that wraps to
+       the start. A causal or zero-padded convolution leaves those bins empty.
+    2. FILTER AT FULL STIMULUS LENGTH, not truncated to a short kernel. Probe: a filter with a
+       deliberate tap at a long lag must contribute. A truncated kernel silently drops it.
+    3. PER-EPOCH for 2-D data. Probe: with epoch 0 driven and epoch 1 silent, epoch 1's output
+       must be exactly zero. Flattening splices one trial onto the next and leaks.
+
+    Returns {"ok": bool, "checks": {name: {"passed": bool, "detail": str}}}.
+    """
+    n = n_points
+    checks = {}
+
+    # ---- 1. circular, not causal --------------------------------------------------------
+    f = np.zeros(n)
+    f[:4] = [0.0, 1.0, 0.5, 0.25]          # weight at lags 2..4 only
+    stim = np.zeros((1, n))
+    stim[0, n - 1] = 1.0                   # impulse in the very last sample
+    y = np.asarray(conv_fn(stim, f))
+    wrapped = float(np.max(np.abs(y[0, :3])))
+    checks["circular_not_causal"] = {
+        "passed": wrapped > 1e-9,
+        "detail": (f"impulse at the last sample produced |response| = {wrapped:.3g} in the "
+                   f"first 3 bins; a circular convolution wraps (expect ~1), a causal or "
+                   f"zero-padded one does not (expect 0)")}
+
+    # ---- 2. filter used at full length, not truncated ------------------------------------
+    far = n // 2
+    f2 = np.zeros(n)
+    f2[1] = 1.0
+    f2[far] = 1.0                          # a deliberate tap at a long lag
+    stim2 = np.zeros((1, n))
+    stim2[0, 0] = 1.0
+    y2 = np.asarray(conv_fn(stim2, f2))
+    got_far = float(np.abs(y2[0, far % n]))
+    checks["filter_full_length"] = {
+        "passed": got_far > 1e-9,
+        "detail": (f"a filter tap at lag {far} contributed {got_far:.3g}; a truncated kernel "
+                   f"drops it (expect 0), full length keeps it (expect ~1)")}
+
+    # ---- 3. per-epoch, no leakage across trials -------------------------------------------
+    f3 = np.zeros(n)
+    f3[:8] = 1.0
+    stim3 = np.zeros((2, n))
+    stim3[0, :] = 1.0                      # epoch 0 driven hard
+    y3 = np.asarray(conv_fn(stim3, f3))
+    leak = float(np.max(np.abs(y3[1])))
+    checks["per_epoch"] = {
+        "passed": y3.shape == (2, n) and leak < 1e-9,
+        "detail": (f"with epoch 0 driven and epoch 1 silent, epoch 1 output had "
+                   f"max |value| = {leak:.3g} and shape {y3.shape}; per-epoch convolution "
+                   f"leaves it exactly 0")}
+
+    ok = all(c["passed"] for c in checks.values())
+    if verbose:
+        for name, c in checks.items():
+            print(f"  {'PASS' if c['passed'] else 'FAIL'}  {name:22s} {c['detail']}")
+        print(f"  -> {'convolution matches the convention' if ok else 'CONVENTION VIOLATED'}")
+    return {"ok": ok, "checks": checks}
+
+
 def causality_check(filt, n_points=None, impulse_at=None):
     """Confirm a kernel is causal under this module's circular-convolution convention.
 
