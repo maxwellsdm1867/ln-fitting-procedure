@@ -156,6 +156,22 @@ ruled out and what's left is science.
 | `numFiltIdentifiable` | `numFilt` is above the resolvable limit, so it's a bound not an estimate |
 | `perEpochR2Spread` | one epoch is dragging the rest — usually a bad trial, not a bad model |
 
+### The reviewer agent
+
+The plugin also ships a **`cascade-fit-review`** agent — a fast, read-only checker that runs
+in its own context and reports what is wrong with a fit before its numbers are written up. Ask
+for it by name, or just say *"review this fit"*:
+
+```
+> review this fit before I write it up
+```
+
+It runs the bundled verifiers against your code rather than reading it, and works down the
+accumulated list of ways this model family is set up wrong — filter construction, convolution,
+time axis, the four exact degeneracies, optimizer convergence, and how the R² is reported. It
+does not refit and it does not fix anything; it takes about two minutes and tells you what to
+look at.
+
 Separately, `verify_convolution` / `cascadeVerifyConv` check any convolution you *didn't* get
 from here against the three conventions — circular not causal, filter at full stimulus length,
 per-epoch — and report which one is wrong. Useful when porting, or when someone else's script
