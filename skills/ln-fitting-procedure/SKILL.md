@@ -121,14 +121,31 @@ thing that needs both, plus `scipy.io` to read the reference file.
 
 ## Before you fit: agree what "good" means
 
-**Ask the scientist what R² they expect for this cell type and this stimulus, before fitting
-anything.** Achievable R² varies a great deal across stimulus types and cell types — a number
-that means "excellent" for one protocol means "something is broken" for another — so there is
-no built-in threshold worth trusting. Getting the expectation up front also converts a vague
-"the fit looks bad" into a decidable question.
+**Ask what R² they expect for this cell type and this stimulus, before fitting anything.** In
+an interactive session use the `AskUserQuestion` tool rather than burying the question in
+prose — one question, a few plausible ranges for this preparation plus an "I don't know"
+option. It takes the scientist seconds and it changes how every number afterwards is read:
 
-If you cannot ask — a batch job, a one-shot invocation, nobody at the keyboard — then do not
-quietly skip this. **Say in the write-up what you compared against and that no expectation was
+```
+AskUserQuestion({questions: [{
+  header:   "Expected R²",
+  question: "What per-epoch R² would you expect for an Off parasol under Variable Mean Noise?
+             It decides whether this fit is good or broken.",
+  options: [
+    {label: "~0.6-0.7",  description: "Typical for parasols in our hands"},
+    {label: "~0.8-0.95", description: "More like horizontal or bipolar cells"},
+    {label: "~0.3-0.5",  description: "Expect a lot of unexplained variance here"},
+    {label: "Not sure",  description: "Use the noise ceiling and a model-free bound instead"}
+  ]}]})
+```
+
+Achievable R² varies a great deal across stimulus types and cell types — a number that means
+"excellent" for one protocol means "something is broken" for another — so there is no built-in
+threshold worth trusting. Asking also converts a vague "the fit looks bad" into a decidable
+question.
+
+If you cannot ask — a batch job, a one-shot invocation, nobody at the keyboard — do not
+quietly skip it. **Say in the write-up what you compared against and that no expectation was
 supplied**, e.g. "no target R² was given; this is 0.885 against a trial-to-trial noise ceiling
 of 0.884." A bare R² with no reference point is not interpretable by whoever reads it next,
 and the omission is invisible unless you name it.
