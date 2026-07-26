@@ -6,22 +6,39 @@
   },
   "metadata": {
     "description": "Cascade model fitting for retinal recordings, in the CascadeGraph parameterization",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "ln-fitting-procedure",
       "source": "./",
       "description": "Fitting and debugging parametric cascade models of neural stimulus-response data -- LN, GLM with feedback, two-arm -- in the CascadeGraph parameterization. Staged Nelder-Mead pipeline with random restarts, free-running feedback, per-epoch variance explained, and automatic diagnostics that catch the failure modes a good R^2 hides.",
-      "version": "1.0.0",
-      "author": { "name": "arthurh" },
+      "version": "1.1.0",
+      "author": {
+        "name": "arthurh"
+      },
       "homepage": "https://github.com/maxwellsdm1867/ln-fitting-procedure",
       "repository": "https://github.com/maxwellsdm1867/ln-fitting-procedure",
       "license": "MIT",
-      "keywords": ["neuroscience", "retina", "cascadegraph", "model-fitting", "matlab", "python"],
+      "keywords": [
+        "neuroscience",
+        "retina",
+        "cascadegraph",
+        "model-fitting",
+        "matlab",
+        "python"
+      ],
       "category": "science",
-      "tags": ["retina", "electrophysiology", "ln-model", "glm", "parameter-recovery"],
-      "skills": ["./skills/ln-fitting-procedure"]
+      "tags": [
+        "retina",
+        "electrophysiology",
+        "ln-model",
+        "glm",
+        "parameter-recovery"
+      ],
+      "skills": [
+        "./skills/ln-fitting-procedure"
+      ]
     }
   ]
 }
