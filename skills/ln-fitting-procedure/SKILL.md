@@ -480,6 +480,17 @@ Agent(subagent_type="cascade-fit-review",
       prompt="Review the fit in <dir> before it is written up: <script>, <results>.")
 ```
 
+Either way, the mechanical part is one command and about a second:
+
+```bash
+python <skill>/scripts/check_fit.py their_fit.py results.json data.npz
+```
+
+It walks the whole list — filter construction against the reference, nonlinearity grouping,
+the three convolution conventions, causality, preprocessing, per-epoch vs pooled R², starts
+and convergence, `numFilt` identifiability, and whether the reported parameters reproduce the
+reported R² — and returns PASS/FAIL/SKIP with the measurement attached.
+
 If you do review inline, hold to the same rule the agent does: **verification must be cheap.**
 Re-running the optimizer to see whether you get the same answer is the expensive way to learn
 almost nothing — it costs minutes, it conflates "the fit is wrong" with "the search is
