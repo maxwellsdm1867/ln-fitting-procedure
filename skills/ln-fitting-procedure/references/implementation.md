@@ -2,11 +2,46 @@
 
 Read this when you are reimplementing, porting, reviewing an implementation by hand, or need
 to know exactly what a parameter means. For ordinary fitting you do not need any of it:
-`cascade_fit` (Python) and `scripts/matlab` implement all of it, and `check_fit.py` verifies
-every convention below mechanically in about a second.
+`scripts/matlab` implements all of it on top of CascadeGraph, `scripts/cascade_fit.py` is the
+reference implementation `check_fit.py` compares against, and `check_fit.py` verifies every
+convention below mechanically in about a second.
 
 That is the point of the split. These conventions are load-bearing and easy to get wrong, but
 having them verified is more useful than having them memorised.
+
+## Contents
+
+- [Before any of this: the recording has to declare itself](#before-any-of-this-the-recording-has-to-declare-itself) — the data contract, units, layout
+- [The two building blocks](#the-two-building-blocks) — the parametric filter and the cumulative-normal nonlinearity, parameter by parameter
+- [Preprocessing](#preprocessing) — decimation, mean-subtraction, what stays in native units
+- [Numerical hygiene](#numerical-hygiene) — overflow forms, degeneracies, the conventions that bite
+- [The staged pipeline](#the-staged-pipeline) — why the fit is staged and what each stage is for
+
+## Before any of this: the recording has to declare itself
+
+None of the conventions below can save a fit whose input was misread. A response stored in
+volts and read as millivolts fits happily with every amplitude 1000x off, and nothing in R²
+shows it; an array stored `(time x epochs)` and read the other way produces a filter that is
+noise. So the declaration comes first, and it is written down rather than remembered.
+
+The rules live in `scripts/recording.contract.json` — canonical layout and units, the required
+fields, the sane band for the sampling interval, and the unit table that decides both the scale
+factor and whether to rectify. They are data, applied by one function, so there is exactly one
+place to change what the skill accepts:
+
+```matlab
+cascadePreflight('cell.mat')                   % can this be fitted? run before the job
+proposal = cascadeInferContract('cell.mat');   % what the file can and cannot tell us
+cascadeWriteContract('cell.mat', fields)       % land the confirmed answers in meta.json
+```
+
+`cascadeRecordingContract` returns one of three things, and the distinction is the point.
+**Reject** lists every reason at once rather than the first. **Ask** carries an answerable
+question for the fields the file is genuinely silent about — a sampling interval no array can
+reveal, units where magnitude only hints, an orientation that is reliable until the array is
+square. **Accept** returns a plan saying exactly what to apply. `cascadeLoadEpochs` obeys that
+plan; it has no unit logic of its own, because two copies of these rules is the drift the
+contract exists to remove.
 
 ## The two building blocks
 

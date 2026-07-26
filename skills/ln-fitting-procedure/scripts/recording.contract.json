@@ -123,5 +123,27 @@
     }
   ],
   "conversion_note": "Only the RESPONSE is converted, and only within its own dimension -- mV and pA are both canonical and are never converted into each other. A voltage recording stored in V is scaled to mV so that alpha and epsilon come out in the units the diagnostics and the literature assume; leaving it in V shifts them by 1000x and every threshold in the skill silently stops applying. The stimulus is never touched.",
-  "rectify_note": "Rectification follows the KIND, not the values. Rectifying an analog trace destroys the decrement half of an OFF cell's response; failing to rectify a rate lets the fit spend its dynamic range on negative firing rates. Neither is visible in R^2, which is why the unit is declared rather than guessed."
+  "rectify_note": "Rectification follows the KIND, not the values. Rectifying an analog trace destroys the decrement half of an OFF cell's response; failing to rectify a rate lets the fit spend its dynamic range on negative firing rates. Neither is visible in R^2, which is why the unit is declared rather than guessed.",
+  "preprocessing_invariants": [
+    {
+      "rule": "mean-subtract the stimulus per epoch; leave the response in native units",
+      "why": "the filter absorbs stimulus scale, so removing its mean costs nothing. Normalising the RESPONSE moves alpha and epsilon off the units every threshold in this skill assumes, and nothing in R^2 shows it.",
+      "enforced_by": "cascadeLoadEpochs: stim = stim - mean(stim,2); info.responseUntouched"
+    },
+    {
+      "rule": "rectify=false unless response_units is a rate (spikes/s)",
+      "why": "rectification follows the declared KIND, never the values. Rectifying an analog trace destroys the decrement half of an OFF cell's response; failing to rectify a rate spends the fit's range on negative firing rates.",
+      "enforced_by": "response_units_table.rectify, applied by cascadeLoadEpochs"
+    },
+    {
+      "rule": "decimate to the fitting dt; 0.1 ms raw to 10 ms bins is factor 100",
+      "why": "the factor must be an integer multiple of sample_interval_s. A non-integer factor is refused rather than rounded, because a silently rounded decimation shifts the whole time axis.",
+      "enforced_by": "cascadeLoadEpochs: factor = dt/rawDt, asserted integral"
+    },
+    {
+      "rule": "keep the epoch structure as an (epochs x time) matrix; never flatten",
+      "why": "per-epoch R^2 is the readout that matters and it cannot be recovered from concatenated epochs. Pooling also credits the model for across-epoch mean differences, which is a different quantity that ranks fits differently.",
+      "enforced_by": "orientation + the transposed-array assertion in cascadeLoadEpochs"
+    }
+  ]
 }

@@ -1,18 +1,24 @@
 ---
 name: ln-fitting-procedure
 description: >-
-  Fitting and debugging parametric cascade models of neural stimulus-response data — LN, GLM
-  with feedback, LNLN, two-arm — in the CascadeGraph parameterization: parametric temporal
-  filter, cumulative-normal nonlinearity, staged Nelder-Mead pipeline with random restarts,
-  free-running (never teacher-forced) feedback, per-epoch variance explained. Use it whenever
-  someone is fitting a temporal filter plus a static nonlinearity to a recording, or
-  diagnosing one that misbehaves — "fit an LN model to this cell", "recover the temporal
-  filter", "near-zero variance explained", "the filter looks wrong", "alpha came out the wrong
-  sign", "why is my EV so low on the parasols", "add spike-history feedback", "port this from
-  the MATLAB CascadeGraph code" — for cone, horizontal, bipolar, amacrine, or parasol/midget
-  RGC data, and even when "LN model" is never said. Not for generic signal processing or
-  resampling, receptive-field mapping, spike sorting, Hodgkin-Huxley fitting, or
-  neural-network encoding models.
+  Fitting, checking and preparing data for parametric cascade models of neural
+  stimulus-response recordings — LN, GLM with feedback, LNLN, two-arm — in the MATLAB
+  CascadeGraph parameterization: parametric temporal filter, cumulative-normal nonlinearity,
+  staged Nelder-Mead pipeline with random restarts, free-running (never teacher-forced)
+  feedback, per-epoch variance explained. Use it whenever someone is fitting a temporal filter
+  plus a static nonlinearity to a recording, or diagnosing one that misbehaves — "fit an LN
+  model to this cell", "recover the temporal filter", "near-zero variance explained", "the
+  filter looks wrong", "alpha came out the wrong sign", "why is my EV so low on the parasols",
+  "add spike-history feedback", "port this from the MATLAB CascadeGraph code". Use it just as
+  much for getting a recording ready to fit at all — the data contract that declares what a
+  file holds before ten minutes get spent on it: "what units is this response in", "my
+  amplitudes are off by 1000", "the response is in volts not mV", "should this be rectified",
+  "my epochs are stored the wrong way round", "the stimulus and response are called something
+  else in this .mat", "set up meta.json for these cells", "check these recordings before I run
+  the batch". Covers cone, horizontal, bipolar, amacrine, and parasol/midget RGC data, and
+  applies even when "LN model" is never said. Not for generic signal processing or resampling,
+  receptive-field mapping, spike sorting, Hodgkin-Huxley fitting, or neural-network encoding
+  models.
 allowed-tools:
   - Read
   - Write
@@ -75,11 +81,11 @@ every convention, degeneracy and optimizer quirk below is either handled silentl
 bundled fitters or reported by them automatically. Use one and your time goes to improving the
 fit and understanding the data, which is the only part that needs you.
 
-There are two, and they agree to ~1e-6 on every fitted parameter on the same data.
-
-**MATLAB** — `scripts/matlab/`. Calls `ParamFilterNode` and `SigmoidNlNode` directly, so the
-model has exactly one definition and parity is automatic rather than maintained. This is the
-layer CascadeGraph does not provide: the staged pipeline, restarts, and the diagnostics.
+**Fit in MATLAB.** `scripts/matlab/` calls CascadeGraph's `ParamFilterNode` and `SigmoidNlNode`
+directly, so the model has exactly one definition and parity is automatic rather than
+maintained. That is the whole argument: a second implementation has to be *kept* correct, and
+maintained agreement decays quietly. This layer adds what CascadeGraph does not provide — the
+staged pipeline, the restarts, and the diagnostics.
 
 ```matlab
 addpath(genpath('<cascadegraph>')); addpath('<skill>/scripts/matlab');
@@ -102,27 +108,21 @@ python <skill>/scripts/check_fit.py your_fit_script.m results.json data.mat
 signed loop gain, never by `a_fb` alone. `cascadeFitTwoArm` returns `out.bic` and `out.lnBic`,
 because R² alone always favours the bigger model.
 
-**Python** — `scripts/cascade_fit.py`, checked against the MATLAB kernel to 1e-14.
+**`scripts/cascade_fit.py` is not a second way to fit.** It is the reference implementation
+`check_fit.py` calls to verify a filter numerically, and the engine behind the Stop hook's
+figures — a hook runs at the end of every turn, and paying MATLAB's ~17 s startup each time is
+the one place Python earns its keep. Reach for it to *check* a fit, never to produce one:
+fitting there would resurrect exactly the maintained-parity problem the MATLAB path exists to
+avoid.
 
-```python
-import sys; sys.path.insert(0, "<skill>/scripts")
-from cascade_fit import load_epochs, fit_ln
-
-stim, resp, info = load_epochs("data.npz")     # sampling interval + units from meta.json
-res = fit_ln(stim, resp, dt=info["dt"])
-
-if info["unresolved"]: print(info["unresolved"])
-if not res["diagnostics"]["ok"]: print(res["diagnostics"]["warnings"])
-print(res["params"], res["r2_per_epoch"], res["r2_mean"])
-```
-
-**The loader infers the setup** rather than asking you to restate it: sampling interval and
-response units come from the recording's own `meta.json`, the setup used is printed in one
-line, and it refuses outright on the mistakes that are invisible downstream — a transposed
-`(time x epochs)` array, a `dt` that is not an integer multiple of the sampling interval, an
-unreadable file. Anything it cannot resolve — units missing or unrecognised, no metadata at
-all — is reported rather than defaulted, because a silent default is a guess wearing a fact's
-clothes. Known and checked is quiet; unknown is loud.
+**The loader applies the recording's declaration** rather than guessing at it. Which variables
+hold stimulus and response, whether the arrays need transposing, the sampling interval, the
+response units and therefore both the scale factor and whether to rectify — all of it comes
+from `meta.json` via the contract, and the setup actually used is printed in one line. It
+refuses outright on the mistakes that are invisible downstream: a layout that contradicts the
+declaration, a `dt` that is not an integer multiple of the sampling interval, an unreadable
+file. Anything unresolved is asked rather than defaulted, because a silent default is a guess
+wearing a fact's clothes. Known and checked is quiet; unknown is loud.
 
 A `Stop` hook ships with the plugin and runs the check and the standard figures after any
 turn that writes a `results.json`, so this happens whether or not anyone remembered. A failed
@@ -188,17 +188,9 @@ addpath(genpath('<cascadegraph>'));
 addpath('<skill>/scripts/matlab');
 ```
 
-**Python** — numpy and scipy. `numba` is optional and only accelerates the GLM inner loop;
-without it the pure-numpy path uses the same exact O(1) recursion and is perfectly usable
-(~20 s for a GLM fit). Parses and runs on 3.9 through 3.13. The Python needs **no** MATLAB and
-no CascadeGraph — it implements the model itself and is checked against the MATLAB separately.
-
-```python
-import sys; sys.path.insert(0, "<skill>/scripts")
-```
-
-**Cross-checking the two** (`scripts/parity_dump.m` + `scripts/parity_check.py`) is the only
-thing that needs both, plus `scipy.io` to read the reference file.
+**Python** — numpy and scipy, 3.9 through 3.13, needed only for `check_fit.py` and the Stop
+hook's figures. See [`references/python-reference-impl.md`](references/python-reference-impl.md)
+if you are working on the checker itself.
 
 ## Before you fit: agree what "good" means
 
