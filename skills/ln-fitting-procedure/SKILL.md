@@ -34,6 +34,39 @@ gradient-free search from a bad start sits in a local minimum forever. Stage 1 f
 filter while the objective is nearly linear in what matters, Stage 2 finds the nonlinearity on
 a now-fixed input, Stage 3 lets them negotiate.
 
+## Before anything: the recording has to declare itself
+
+A fit is about ten minutes. A response left in volts, or an array stored `(time x epochs)`,
+costs you all ten — and the version that does not error but quietly fits the wrong thing costs
+a great deal more, because none of it shows up in R². So the declaration comes first, and it
+is written down rather than remembered.
+
+```matlab
+addpath('<skill>/scripts/matlab');
+
+cascadePreflight('cell.mat')                  % can this be fitted? run it before the job
+proposal = cascadeInferContract('cell.mat');  % what the file can and cannot tell us
+cascadeWriteContract('cell.mat', fields)      % land the confirmed answers in meta.json
+```
+
+**When `proposal.mustAsk` is non-empty, ask with `AskUserQuestion`. Do not guess, and do not
+default.** Those fields are exactly the ones the file is silent about and the answer changes
+the numbers:
+
+- `sample_interval_s` — no array can reveal its own sample rate. If the file carries a scalar
+  named `dt` or `Fs`, it is still only a proposal: whether that number is an interval or a rate
+  is a coin flip on the name, and getting it backwards rescales the entire time axis.
+- `response_units` — magnitude only hints. Non-negative integers look like a firing rate and
+  also like a rectified current; a sub-1 span looks like volts and also like a small millivolt
+  deflection. Volts read as millivolts is a 1000× error that fits happily and moves every
+  threshold in this skill.
+- `orientation` — proposed from the array shape, which is reliable until the array is square.
+
+Each proposal carries its `evidence`; put that in the question so the answer is informed rather
+than a coin flip of its own. Then `cascadeWriteContract` validates and records it, so the next
+session does not ask again. `contract off` exists, but then `cascadePreflight` is what stands
+between you and a wasted job.
+
 ## Start here: use the bundled implementation
 
 This model family is genuinely sensitive to initial conditions, and no amount of documentation
