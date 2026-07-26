@@ -14,6 +14,19 @@ ordinary MATLAB and Python and are useful on their own.
 
 ---
 
+## Get started
+
+In your Claude Code terminal:
+
+```
+/plugin marketplace add maxwellsdm1867/ln-fitting-procedure
+/plugin install ln-fitting-procedure@ln-fitting-procedure
+```
+
+That's the preferred way in. The skill is then available in every project and triggers on its
+own — *"fit an LN model to this cell"*, *"my fit gives near-zero variance explained"*,
+*"recover the temporal filter"*. Other install routes are under [Install](#install).
+
 ## Why it exists
 
 This model family is sensitive to initial conditions, and no documentation fixes that. What
@@ -214,6 +227,21 @@ MATLAB GLM fit reaches R² 0.8911 with the wall present, exactly what the Python
 without it). What it does cost is a meaningful number, since `fminsearch` converges *onto* the
 boundary and reports success. So the fitters flag it rather than route around it. See
 `references/cascadegraph-parity.md`.
+
+## Acknowledgements
+
+The model itself — the parametric temporal filter, the cumulative-normal nonlinearity, and the
+cascade structure they sit in — is **Fred Rieke's**, as implemented in
+[CascadeGraph](https://github.com/mardoum/cascadegraph). The fitting procedure this packages,
+including the staged pipeline and the initialization strategy, likewise originates in the
+Rieke lab. **All credit for the science and the model formulation goes to Fred and to the lab.**
+
+What this repository adds is packaging around that work: a staged fitter in both languages, the
+degeneracy handling, the diagnostics, and a test suite. The MATLAB side calls `ParamFilterNode`
+and `SigmoidNlNode` directly rather than reimplementing them, so there is one definition of the
+model and it is Fred's.
+
+Any errors in the packaging, the diagnostics or the analysis here are mine, not theirs.
 
 ## Related
 

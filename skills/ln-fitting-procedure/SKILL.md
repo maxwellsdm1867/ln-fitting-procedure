@@ -121,11 +121,17 @@ thing that needs both, plus `scipy.io` to read the reference file.
 
 ## Before you fit: agree what "good" means
 
-**Ask the scientist what R² they expect for this cell type and this stimulus before fitting
-anything, and use that as the reference.** Achievable R² varies a great deal across stimulus
-types and cell types — a number that means "excellent" for one protocol means "something is
-broken" for another — so there is no built-in threshold worth trusting. Getting this
-expectation up front also converts a vague "the fit looks bad" into a decidable question.
+**Ask the scientist what R² they expect for this cell type and this stimulus, before fitting
+anything.** Achievable R² varies a great deal across stimulus types and cell types — a number
+that means "excellent" for one protocol means "something is broken" for another — so there is
+no built-in threshold worth trusting. Getting the expectation up front also converts a vague
+"the fit looks bad" into a decidable question.
+
+If you cannot ask — a batch job, a one-shot invocation, nobody at the keyboard — then do not
+quietly skip this. **Say in the write-up what you compared against and that no expectation was
+supplied**, e.g. "no target R² was given; this is 0.885 against a trial-to-trial noise ceiling
+of 0.884." A bare R² with no reference point is not interpretable by whoever reads it next,
+and the omission is invisible unless you name it.
 
 For calibration only, these were measured under **one** protocol (Variable Mean Noise,
 ConeResponseFull), per-epoch R²:
@@ -461,6 +467,14 @@ Order of preference:
 3. **Your own**, only for a variant neither covers, and only after reading the conventions in
    this file. Cross-check it against `cascade_fit.make_filter` on a fixed parameter vector
    before trusting a single fitted number.
+
+## Credit
+
+The model and the fitting procedure are **Fred Rieke's**, as implemented in CascadeGraph
+(`ParamFilterNode`, `SigmoidNlNode`, `LnHyperNode`, `TwoArmLnHyperNode`). The MATLAB fitters
+here call those nodes directly rather than reimplementing them, so there is one definition of
+the model and it is his. What this skill adds is packaging: the staged fitter in two languages,
+degeneracy handling, diagnostics, and tests.
 
 ## Going further
 
