@@ -13,6 +13,14 @@ description: >-
   RGC data, and even when "LN model" is never said. Not for generic signal processing or
   resampling, receptive-field mapping, spike sorting, Hodgkin-Huxley fitting, or
   neural-network encoding models.
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Grep
+  - Glob
+  - AskUserQuestion
 ---
 
 # Fitting parametric cascade models to retinal data
