@@ -91,6 +91,10 @@ unreadable file. Anything it cannot resolve — units missing or unrecognised, n
 all — is reported rather than defaulted, because a silent default is a guess wearing a fact's
 clothes. Known and checked is quiet; unknown is loud.
 
+A `Stop` hook ships with the plugin and runs the check and the standard figures after any
+turn that writes a `results.json`, so this happens whether or not anyone remembered. It is
+silent when the fit is clean and when it has already reported on that exact file.
+
 **Run `check_fit.py` every time — it is on by default, not on request.** It takes about a
 second, so there is no fit cheap enough to justify skipping it and no fit important enough to
 report without it. Run it:
@@ -219,6 +223,26 @@ The one thing worth carrying in your head: **the conventions are load-bearing an
 nonlinearity is `beta*x + gamma`; convolution is circular, at full stimulus length, per epoch;
 R² is row-wise per epoch. Every one of them produces a plausible fit when wrong, and every one
 is checked by `check_fit.py`.
+
+## Standard figures
+
+Always the same six panels, in the order you need them, so you learn where to look instead of
+re-reading an ad-hoc figure each time:
+
+```bash
+python <skill>/scripts/make_figures.py results.json data.npz fit_figures.png   # ~3 s
+```
+
+1. **input** — the stimulus, so you can see what the cell was shown
+2. **output** — the response with the prediction on top
+3. **filter** — fitted, with the cross-correlation estimate overlaid. Disagreement here means
+   a local minimum whatever the R² says
+4. **nonlinearity** — binned data with the fitted sigmoid. Sitting in one saturated tail, or
+   running straight through without curving, means the cell was never driven across its range
+5. **residuals vs prediction** — structure means something systematic is missed
+6. **per-epoch R²** — the spread. One epoch far below the rest is usually a bad trial
+
+The hook draws these automatically after a fit.
 
 ## Reporting variance explained
 

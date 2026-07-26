@@ -1,6 +1,6 @@
 {
   "name": "ln-fitting-procedure",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Fitting LN, GLM-with-feedback and two-arm cascade models to retinal stimulus-response recordings, in the CascadeGraph parameterization. MATLAB and Python fitters, cross-checked to ~1e-13, with automatic per-fit diagnostics.",
   "author": {
     "name": "arthurh"

@@ -1,0 +1,16 @@
+{
+  "description": "After a fit, check it and draw the standard figures -- without anyone having to remember.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/stop_check.py\"",
+            "timeout": 200
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -177,6 +177,20 @@ It is regression-tested against 13 variants that each differ from a correct scri
 one mistake: every variant flags its own mistake and nothing else, and correct scripts come
 back clean. Run the suite with `python tests/build_check_variants.py && python tests/test_check_fit.py`.
 
+### Standard figures, and the hook
+
+```bash
+python skills/ln-fitting-procedure/scripts/make_figures.py results.json data.npz
+```
+
+Six fixed panels: stimulus, response with prediction, filter against the cross-correlation
+estimate, nonlinearity against binned data, residuals, per-epoch R². Fixed on purpose — you
+learn where to look.
+
+A `Stop` hook runs both the checker and the figures after any turn that writes a
+`results.json`, so neither depends on anyone remembering. It stays silent when the fit is
+clean and when it has already reported on that file.
+
 ### The reviewer agent
 
 The plugin also ships a **`cascade-fit-review`** agent — a fast, read-only checker that runs
