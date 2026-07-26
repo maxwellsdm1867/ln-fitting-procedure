@@ -469,6 +469,36 @@ differences — and the two can rank models differently. If you show both, label
 which; quietly mixing a pooled number in a figure with per-epoch numbers in a table is how
 model comparisons go wrong.
 
+## Reviewing a fit — do not refit to check it
+
+Checking a fit and producing a fit are different jobs with different costs. **Delegate review
+to the `cascade-fit-review` agent** shipped with this skill: it has a fresh context, which
+matters because whoever produced the fit has absorbed its assumptions, and a bounded budget.
+
+```
+Agent(subagent_type="cascade-fit-review",
+      prompt="Review the fit in <dir> before it is written up: <script>, <results>.")
+```
+
+If you do review inline, hold to the same rule the agent does: **verification must be cheap.**
+Re-running the optimizer to see whether you get the same answer is the expensive way to learn
+almost nothing — it costs minutes, it conflates "the fit is wrong" with "the search is
+stochastic", and it is not what any of these failure modes need. Every one of them is
+detectable from the artifacts you already have:
+
+| question | cheap check (seconds) | not this |
+|---|---|---|
+| do the reported parameters mean anything? | `roundtrip(params, stim, resp, dt, r2)` | refit and compare |
+| is the convolution right? | `verify_convolution(their_conv)` | refit with a different conv |
+| is the filter built right? | diff their filter against `make_filter` on fixed parameters | refit |
+| is it causal? | `causality_check(filt)` — one impulse | inspect predictions by eye |
+| did the optimizer converge? | read `res.status` / `exitflag` they already recorded | rerun to see if it moves |
+| is it a real optimum? | `local_optimality(loss, params)` — 2N loss evaluations | multi-start comparison |
+| is `numFilt` meaningful? | compare against `22*tauR/dt` | sweep it |
+
+A refit belongs in a review only when a cheap check has already failed and you need to show
+what the right answer looks like. Reach for it last, not first.
+
 ## Before you trust a fit
 
 `res["diagnostics"]` has already done the mechanical part: round-trip, convergence, local

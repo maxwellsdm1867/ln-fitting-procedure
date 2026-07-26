@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Cascade model fitting for retinal recordings, in the CascadeGraph parameterization",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "plugins": [
     {
       "name": "ln-fitting-procedure",
       "source": "./",
       "description": "Fitting and debugging parametric cascade models of neural stimulus-response data -- LN, GLM with feedback, two-arm -- in the CascadeGraph parameterization. Staged Nelder-Mead pipeline with random restarts, free-running feedback, per-epoch variance explained, and automatic diagnostics that catch the failure modes a good R^2 hides.",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "author": {
         "name": "arthurh"
       },
