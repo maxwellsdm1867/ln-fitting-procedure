@@ -1,0 +1,127 @@
+{
+  "schema": "cascade-recording/1",
+  "description": "What a recording must declare before it can be fitted. The rules live HERE, in data; scripts/matlab/cascadeRecordingContract.m only applies them. Kept as an array of records rather than an object keyed by unit because MATLAB's jsondecode mangles field names containing '/'.",
+  "canonical": {
+    "layout": "epochs_x_time",
+    "response_analog": "mV",
+    "response_rate": "spikes/s",
+    "time": "s"
+  },
+  "required": [
+    "sample_interval_s"
+  ],
+  "fields": {
+    "sample_interval_s": {
+      "type": "number",
+      "units": "s",
+      "doc": "Raw sampling interval of the stored arrays, in SECONDS. Not the fitting dt.",
+      "sane_range": [
+        1e-07,
+        1.0
+      ],
+      "sane_range_note": "Outside this band the value is almost always milliseconds or a sample RATE written into the wrong field; both produce a decimation factor that is wrong by orders of magnitude and invisible downstream."
+    },
+    "stim_var": {
+      "type": "string",
+      "default": "stim",
+      "doc": "Name of the stimulus variable inside the .npz / .mat."
+    },
+    "resp_var": {
+      "type": "string",
+      "default": "resp",
+      "doc": "Name of the response variable inside the .npz / .mat."
+    },
+    "orientation": {
+      "type": "string",
+      "default": "epochs_x_time",
+      "enum": [
+        "epochs_x_time",
+        "time_x_epochs"
+      ],
+      "doc": "Declared layout of the stored arrays. Declaring time_x_epochs transposes on load; leaving it at the default and storing the transpose is refused, because the loader cannot tell a transposed 3x60000 from a genuine 60000x3."
+    },
+    "response_units": {
+      "type": "string",
+      "doc": "Units of the stored response. Decides rectification AND conversion to canonical."
+    },
+    "stimulus_units": {
+      "type": "string",
+      "doc": "Units of the stored stimulus, for the record only. There is NO canonical stimulus unit and nothing is converted: contrast, pixel intensity, R*/cone/s and raw DAC counts are all legitimate, and the fitted filter amplitude absorbs whatever scale was used. Declared so a reader knows what the numbers meant, not so the loader can act on it."
+    },
+    "response_scale": {
+      "type": "number",
+      "default": null,
+      "doc": "Explicit multiplier applied to the response on load. Overrides unit-table conversion; use when response_units is not something the table knows."
+    }
+  },
+  "response_units_table": [
+    {
+      "unit": "mV",
+      "kind": "analog",
+      "to_canonical": 1.0,
+      "rectify": false
+    },
+    {
+      "unit": "V",
+      "kind": "analog",
+      "to_canonical": 1000.0,
+      "rectify": false
+    },
+    {
+      "unit": "uV",
+      "kind": "analog",
+      "to_canonical": 0.001,
+      "rectify": false
+    },
+    {
+      "unit": "pA",
+      "kind": "analog",
+      "to_canonical": 1.0,
+      "rectify": false
+    },
+    {
+      "unit": "nA",
+      "kind": "analog",
+      "to_canonical": 1000.0,
+      "rectify": false
+    },
+    {
+      "unit": "uA",
+      "kind": "analog",
+      "to_canonical": 1000000.0,
+      "rectify": false
+    },
+    {
+      "unit": "A",
+      "kind": "analog",
+      "to_canonical": 1000000000000.0,
+      "rectify": false
+    },
+    {
+      "unit": "spikes/s",
+      "kind": "rate",
+      "to_canonical": 1.0,
+      "rectify": true
+    },
+    {
+      "unit": "spikes/sec",
+      "kind": "rate",
+      "to_canonical": 1.0,
+      "rectify": true
+    },
+    {
+      "unit": "sp/s",
+      "kind": "rate",
+      "to_canonical": 1.0,
+      "rectify": true
+    },
+    {
+      "unit": "Hz",
+      "kind": "rate",
+      "to_canonical": 1.0,
+      "rectify": true
+    }
+  ],
+  "conversion_note": "Only the RESPONSE is converted, and only within its own dimension -- mV and pA are both canonical and are never converted into each other. A voltage recording stored in V is scaled to mV so that alpha and epsilon come out in the units the diagnostics and the literature assume; leaving it in V shifts them by 1000x and every threshold in the skill silently stops applying. The stimulus is never touched.",
+  "rectify_note": "Rectification follows the KIND, not the values. Rectifying an analog trace destroys the decrement half of an OFF cell's response; failing to rectify a rate lets the fit spend its dynamic range on negative firing rates. Neither is visible in R^2, which is why the unit is declared rather than guessed."
+}
