@@ -96,8 +96,13 @@ def check_filter(ns, src, rep):
         return None
     ref = cf.make_filter(**REF, n_points=N, dt=DT)
 
-    rep.add("FAIL" if abs(np.max(np.abs(f)) - 1.0) > 1e-9 else "PASS", "filter unit peak",
-            f"max|f| = {np.max(np.abs(f)):.6g} (want 1)")
+    # Compare against the reference's own peak, not against 1: unit-peak normalisation happens
+    # BEFORE the zero-DC subtraction, so the finished filter peaks near 1, not at it. Demanding
+    # exactly 1 fails the reference implementation itself.
+    ref_peak = float(np.max(np.abs(ref)))
+    got_peak = float(np.max(np.abs(f)))
+    rep.add("PASS" if abs(got_peak - ref_peak) < 0.05 * ref_peak else "FAIL", "filter unit peak",
+            f"max|f| = {got_peak:.6g} (reference gives {ref_peak:.6g})")
     rep.add("FAIL" if abs(np.mean(f)) > 1e-12 else "PASS", "filter zero DC",
             f"mean(f) = {np.mean(f):.3g} (want ~0)")
 
@@ -215,18 +220,33 @@ def check_optimizer(src, rep):
         rep.add("PASS", "multiple starts", "handled by cascade_fit (20 starts x 10 restarts)")
         rep.add("PASS", "convergence recorded", "handled by cascade_fit diagnostics")
         return
-    # A restart loop (refining one start) is not the same as multiple STARTS. Look for random
-    # draws that feed a start vector, not merely the word "rand" somewhere in the file.
-    draws = re.findall(r"(?:np\.random\.|rng\.)?(?:rand|uniform|standard_normal|default_rng)\(", src)
-    start_loop = re.search(r"for\s+\w+\s+in\s+range\([^)]*\)\s*:[\s\S]{0,300}?"
-                           r"(?:rand|uniform)\(", src)
+    # A restart loop (refining one start) is not the same as multiple STARTS, and a loop
+    # whose literal range is 0 or 1 is not multiple starts either even though the random
+    # draws are textually present inside it.
     n_min = len(re.findall(r"minimize\(|fminsearch\(", src))
-    multi = bool(start_loop) or (len(draws) > 0 and n_min > 0 and
-                                 re.search(r"starts?\s*=|inits?\s*=|p0s\s*=", src))
-    rep.add("PASS" if multi else "FAIL", "multiple starts",
-            "random starts feed the optimizer" if multi
-            else f"no random start generation found ({len(draws)} rand calls, "
-                 f"{n_min} optimizer calls): a single start on a periodic surface")
+    good_loop = rejected_loop = None
+    for m in re.finditer(r"for\s+\w+\s+in\s+range\(\s*([0-9]+)\s*\)\s*:"
+                         r"[\s\S]{0,300}?(?:rand|uniform)\(", src):
+        if int(m.group(1)) > 1:
+            good_loop = m
+            break
+        rejected_loop = int(m.group(1))
+    if good_loop is None:
+        good_loop = re.search(r"for\s+\w+\s+in\s+range\(\s*[a-zA-Z_]\w*\s*\)\s*:"
+                              r"[\s\S]{0,300}?(?:rand|uniform)\(", src)
+
+    if good_loop is not None:
+        rep.add("PASS", "multiple starts", "a loop generates random starts for the optimizer")
+    elif rejected_loop is not None:
+        rep.add("FAIL", "multiple starts",
+                f"the start loop is range({rejected_loop}): it never runs, so only the single "
+                f"hardcoded start is used on a periodic surface")
+    else:
+        n_draw = len(re.findall(r"(?:np\.random\.|rng\.)?(?:rand|uniform|standard_normal)\(", src))
+        rep.add("FAIL", "multiple starts",
+                f"no random start generation found ({n_draw} rand calls, {n_min} optimizer "
+                f"calls): a single start on a periodic surface")
+
     conv = re.search(r"\.status|\.success|exitflag", src)
     rep.add("PASS" if conv else "FAIL", "convergence recorded",
             "reads the optimizer status" if conv
