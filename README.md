@@ -4,10 +4,10 @@ Fitting parametric cascade models — **LN**, **GLM with feedback**, and the **t
 to retinal stimulus–response recordings, in the parameterization used by
 [CascadeGraph](https://github.com/mardoum/cascadegraph).
 
-CascadeGraph provides the model *nodes*. This provides the layer it doesn't: the staged
-fitting pipeline, random restarts, resolution of the parameterization's exact degeneracies,
-and a diagnostics block so every fit reports its own verdict. In **MATLAB and Python**,
-cross-checked against each other to ~1e-13.
+CascadeGraph provides the model *nodes*. This provides the layer it doesn't: a data contract
+each recording must satisfy before it is fitted, the staged fitting pipeline, random restarts,
+resolution of the parameterization's exact degeneracies, and a diagnostics block so every fit
+reports its own verdict. In **MATLAB and Python**, cross-checked against each other to ~1e-13.
 
 It is packaged as a Claude Code skill (`SKILL.md` + `references/`), but the fitters are
 ordinary MATLAB and Python and are useful on their own.
@@ -42,6 +42,15 @@ ground truth, runs working from prose alone reported R² values of **0.878**, **
 **0.861** whose own parameters, rebuilt independently, actually produce **0.171**, **0.353**
 and **−2.958**. Nothing about those outputs looked wrong. Runs using this pipeline reproduced
 their reported parameters exactly, 6/6.
+
+The same principle covers the recording itself, which is why nothing is fitted until it has
+declared what it is. Three facts cannot be read off an array of numbers — no file reveals its
+own sample rate, a sub-millivolt AC-coupled trace looks exactly like volts, and a transposed
+3×60000 is indistinguishable from a genuine 60000×3 — and getting any of them wrong rescales
+the time axis or the amplitudes while leaving R² untouched. So the recording declares its
+sampling interval, response units and layout in a `meta.json`, and the loader checks that
+declaration *against the array* rather than trusting it. `cascadePreflight` answers "can this
+be fitted?" in about a second, before the ten-minute job rather than after it.
 
 ## Install
 

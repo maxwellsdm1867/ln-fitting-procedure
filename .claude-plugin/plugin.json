@@ -1,7 +1,7 @@
 {
   "name": "ln-fitting-procedure",
-  "version": "1.10.0",
-  "description": "Fitting LN, GLM-with-feedback and two-arm cascade models to retinal stimulus-response recordings, in the CascadeGraph parameterization. MATLAB and Python fitters, cross-checked to ~1e-13, with automatic per-fit diagnostics.",
+  "version": "1.10.1",
+  "description": "Fitting LN, GLM-with-feedback and two-arm cascade models to retinal stimulus-response recordings, in the CascadeGraph parameterization. Recordings declare their sampling interval, response units and array layout in a data contract that is checked against the file before a fit runs -- a response left in volts, or an array stored transposed, does not error, it quietly fits the wrong thing. MATLAB and Python fitters cross-checked to ~1e-13, with automatic per-fit diagnostics.",
   "author": {
     "name": "arthurh"
   },
@@ -21,6 +21,8 @@
     "model-fitting",
     "matlab",
     "python",
-    "parameter-recovery"
+    "parameter-recovery",
+    "data-contract",
+    "metadata"
   ]
 }
