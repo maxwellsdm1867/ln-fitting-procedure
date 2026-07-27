@@ -33,7 +33,9 @@ EXPECT = {  # variant -> the check name that MUST fail
 }
 rows=[]
 for name in sorted(EXPECT):
-    out = subprocess.run([sys.executable, CHECK, f"{name}.py"], capture_output=True, text=True).stdout
+    out = subprocess.run([sys.executable, CHECK,
+                            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                         f"{name}.py")], capture_output=True, text=True).stdout
     fails = set(re.findall(r"FAIL\s+(.+?)\s\s+", out))
     fails = {f.strip() for f in fails}
     want = EXPECT[name]

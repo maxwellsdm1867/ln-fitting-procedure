@@ -145,7 +145,7 @@ def check_filter(ns, src, rep):
 
 
 def check_nl(ns, src, rep):
-    grouped = re.search(r"(cdf|Phi|normcdf)\s*\(\s*\w+\s*\*\s*\(\s*\w+\s*\+", src)
+    grouped = re.search(r"(cdf|Phi|normcdf|cascadeNormcdf)\s*\(\s*\w+\s*\*\s*\(\s*\w+\s*\+", src)
     rep.add("FAIL" if grouped else "PASS", "nonlinearity grouping",
             "beta*(x + gamma): gamma ends up on the wrong scale" if grouped
             else "beta*x + gamma")
@@ -262,7 +262,98 @@ def check_optimizer(src, rep):
             else "never reads res.status/.success: a fit that ran out of budget looks identical")
 
 
-def check_results(results, data, rep):
+# ---------------------------------------------------------------------------- MATLAB source
+# The skill fits in MATLAB by default, so a checker that only parses Python cannot check the
+# recommended path -- it used to die on ast.parse at line 1 and report nothing at all. The
+# checks split cleanly in two: the ones that CALL your functions (filter, convolution,
+# causality) need a Python callable and are honestly skipped here, and the ones that read the
+# source or the results are language-agnostic once the patterns are MATLAB-flavoured. The
+# round trip in particular is the single most valuable check and needs no source at all.
+
+MATLAB_DELEGATES = r"cascadeFitLN|cascadeFitGLM|cascadeFitTwoArm"
+
+
+def matlab_uses_module(src, pattern):
+    return re.search(pattern, src) is not None
+
+
+def check_preproc_matlab(src, rep):
+    zscored = re.search(r"resp\w*\s*=[^;\n]*\./?\s*std\s*\(", src)
+    rep.add("FAIL" if zscored else "PASS", "response native units",
+            "response is z-scored: alpha and epsilon lose their units" if zscored
+            else "response not normalised")
+    rect = re.search(r"max\s*\(\s*resp\w*\s*,\s*0\s*\)|resp\w*\s*\(\s*resp\w*\s*<\s*0\s*\)\s*=", src)
+    rep.add("FAIL" if rect else "PASS", "no rectification",
+            "response rectified" if rect else "response not rectified")
+    if matlab_uses_module(src, r"cascadeLoadEpochs"):
+        rep.add("PASS", "stimulus mean-subtracted", "handled by cascadeLoadEpochs")
+    else:
+        ms = re.search(r"stim\w*\s*=\s*stim\w*\s*-\s*mean\s*\(\s*stim\w*\s*,\s*2\s*\)", src)
+        rep.add("PASS" if ms else "FAIL", "stimulus mean-subtracted",
+                "per-epoch mean subtracted" if ms
+                else "no per-epoch stimulus mean subtraction found")
+
+
+def check_optimizer_matlab(src, rep):
+    if matlab_uses_module(src, MATLAB_DELEGATES):
+        rep.add("PASS", "multiple starts", "handled by the bundled fitter (starts + restarts)")
+        rep.add("PASS", "convergence recorded", "handled by the bundled fitter's diagnostics")
+        return
+    # MATLAB ranges are 1:N, and a loop written 1:1 runs exactly once -- textually present
+    # random draws inside it are still a single start.
+    good = rejected = None
+    for m in re.finditer(r"for\s+\w+\s*=\s*1\s*:\s*([0-9]+)[\s\S]{0,300}?\brand[nu]?\s*\(", src):
+        if int(m.group(1)) > 1:
+            good = m
+            break
+        rejected = int(m.group(1))
+    if good is None:
+        good = re.search(r"for\s+\w+\s*=\s*1\s*:\s*[a-zA-Z_]\w*[\s\S]{0,300}?\brand[nu]?\s*\(", src)
+
+    if good is not None:
+        rep.add("PASS", "multiple starts", "a loop generates random starts for the optimizer")
+    elif rejected is not None:
+        rep.add("FAIL", "multiple starts",
+                f"the start loop is 1:{rejected}: it runs once, so only the single hardcoded "
+                f"start is used on a periodic surface")
+    else:
+        n_min = len(re.findall(r"fminsearch\s*\(", src))
+        rep.add("FAIL", "multiple starts",
+                f"no random start generation found ({n_min} fminsearch calls): a single start "
+                f"on a periodic surface")
+
+    conv = re.search(r"exitflag|output\.iterations", src)
+    rep.add("PASS" if conv else "FAIL", "convergence recorded",
+            "reads the optimizer exitflag" if conv
+            else "never reads exitflag: a fit that ran out of budget looks identical")
+
+
+def check_reporting_matlab(src, results, rep):
+    if isinstance(results, dict) and isinstance(results.get("r2_per_epoch"), list):
+        rep.add("PASS", "per-epoch R2", f"{len(results['r2_per_epoch'])} per-epoch values reported")
+        return
+    if matlab_uses_module(src, r"computeVarianceExplained|r2PerEpoch"):
+        rep.add("PASS", "per-epoch R2", "uses CascadeGraph's row-wise computeVarianceExplained")
+        return
+    rep.add("SKIP", "per-epoch R2", "no r2_per_epoch in results; could not tell from the code")
+
+
+def run_matlab_checks(src, results, data, rep, meta=None):
+    for name, why in (("filter construction", "filter"),
+                      ("convolution", "convolution"),
+                      ("causality", "filter")):
+        rep.add("SKIP", name,
+                f"MATLAB source: the {why} cannot be called from Python. If this fit came from "
+                f"the bundled fitters it calls CascadeGraph's nodes directly, so there is no "
+                f"second implementation to drift; verify a hand-rolled one with parity_dump.m")
+    check_nl(None, src, rep)
+    check_preproc_matlab(src, rep)
+    check_reporting_matlab(src, results, rep)
+    check_optimizer_matlab(src, rep)
+    check_results(results, data, rep, meta)
+
+
+def check_results(results, data, rep, meta=None):
     if not isinstance(results, dict) or "params" not in results:
         rep.add("SKIP", "round trip", "no results.json with params")
         return
@@ -277,7 +368,11 @@ def check_results(results, data, rep):
         rep.add("SKIP", "round trip", "need results.json and the data file")
         return
     try:
-        stim, resp, _ = cf.load_epochs(data, dt=dt, verbose=False)
+        # The contract encourages leaving the recording read-only and keeping the declaration
+        # beside the analysis, so meta.json is often NOT next to the .mat. Look where the fit
+        # was written before giving up, or the round trip -- the most valuable check here --
+        # skips on exactly the layout the skill recommends.
+        stim, resp, _ = cf.load_epochs(data, dt=dt, verbose=False, meta_path=meta)
         pred = cf.predict_ln(p, stim, dt)
         got = float(np.mean(cf.row_r2(pred, resp)))
     except Exception as e:
@@ -302,9 +397,24 @@ def main():
     if data is None and os.path.exists("data.npz"):
         data = "data.npz"
 
+    meta = None
+    for cand in (os.path.join(os.path.dirname(os.path.abspath(script)), "meta.json"),
+                 "meta.json"):
+        if os.path.exists(cand):
+            meta = cand
+            break
+    if meta and data and os.path.exists(os.path.join(os.path.dirname(data), "meta.json")):
+        meta = None                      # the recording carries its own; prefer it
+
     print(f"checking {script}\n")
-    ns, src = load_functions(script)
     rep = Report()
+
+    if script.lower().endswith(".m"):
+        run_matlab_checks(open(script).read(), results, data, rep, meta)
+        bad = rep.show()
+        return 1 if bad else 0
+
+    ns, src = load_functions(script)
     fnfilt = check_filter(ns, src, rep)
     check_nl(ns, src, rep)
     check_conv(ns, rep)
@@ -312,7 +422,7 @@ def main():
     check_preproc(src, rep)
     check_reporting(src, results, rep)
     check_optimizer(src, rep)
-    check_results(results, data, rep)
+    check_results(results, data, rep, meta)
     bad = rep.show()
     return 1 if bad else 0
 

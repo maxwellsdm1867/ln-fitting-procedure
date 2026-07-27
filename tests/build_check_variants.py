@@ -70,10 +70,15 @@ VARIANTS = {
  "12_no_stim_meansub":[("    stim = stim - stim.mean(axis=1, keepdims=True)\n", "")],
 }
 
+# Write next to this script, not into the caller's cwd. The documented invocation is
+# `python tests/build_check_variants.py` from the repo root, which used to strew 13 variants
+# across the root where .gitignore's tests/[0-9][0-9]_*.py could never match them.
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 for name, subs in VARIANTS.items():
     src = BASE
     for old, new in subs:
         assert old in src, (name, old[:40])
         src = src.replace(old, new, 1)
-    open(f"{name}.py", "w").write(src)
+    open(os.path.join(HERE, f"{name}.py"), "w").write(src)
 print(f"wrote {len(VARIANTS)} variants")

@@ -133,7 +133,7 @@
     {
       "rule": "rectify=false unless response_units is a rate (spikes/s)",
       "why": "rectification follows the declared KIND, never the values. Rectifying an analog trace destroys the decrement half of an OFF cell's response; failing to rectify a rate spends the fit's range on negative firing rates.",
-      "enforced_by": "response_units_table.rectify, applied by cascadeLoadEpochs"
+      "enforced_by": "response_units_table.rectify. DECIDED here and reported as info.rectify; NOT applied to the stored response by any loader, in either language port. The stored response is measured data and clipping it would destroy real samples -- the constraint belongs on the model's prediction, which is a modelling choice this contract does not make for you. cascadeLoadEpochs and cascade_fit.load_epochs both raise it as unresolved when it is true, so a rate recording cannot go into a fit that silently ignores it."
     },
     {
       "rule": "decimate to the fitting dt; 0.1 ms raw to 10 ms bins is factor 100",

@@ -135,7 +135,17 @@ end
 if plan.responseScale ~= 1.0
     resp = resp * plan.responseScale;
 end
+% rectify is DECIDED here and reported, not applied. The stored response is measured data and
+% clipping it would destroy real samples; the non-negativity constraint belongs on the model's
+% prediction, which is a modelling choice this loader does not get to make. Say so out loud --
+% a flag that is computed, returned and silently ignored is how a rate gets fitted by a model
+% that happily predicts negative firing rates.
 rectify = plan.rectify;
+if rectify
+    info.unresolved{end+1} = ['response_units is a rate, so rectify=true -- but this loader ' ...
+        'does NOT clip the response, and no fitter in this skill applies the flag. If negative ' ...
+        'predicted rates matter for your model, enforce it in the prediction yourself.'];
+end
 
 info.rawDt = rawDt; info.dt = opt.dt; info.decimationFactor = factor;
 info.nEpochs = nEp; info.nBins = nBins; info.droppedRawSamples = dropped;

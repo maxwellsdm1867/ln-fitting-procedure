@@ -156,7 +156,7 @@ def _load_mat(path):
     return out
 
 
-def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp",
+def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key=None, resp_key=None,
                 meta_path=None, verbose=True):
     """Load, decimate and preprocess — inferring the setup rather than making you restate it.
 
@@ -173,6 +173,26 @@ def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp
     first two elements only if they index; prefer the three-value form.
     """
     data_path = str(data_path)
+
+    # Read the declaration BEFORE going looking for the arrays. stim_var / resp_var /
+    # orientation are contract fields the MATLAB loader has always honoured, and this one used
+    # to hardcode stim/resp and refuse a transpose outright -- so a recording with rig variable
+    # names or a declared time_x_epochs layout loaded in one language and failed in the other.
+    # Explicit arguments still win, because that is how you test a hunch.
+    meta = {}
+    mp = meta_path or os.path.join(os.path.dirname(data_path), "meta.json")
+    if os.path.exists(mp):
+        try:
+            with open(mp) as fh:
+                meta = json.load(fh)
+        except Exception:
+            meta = {}
+    if stim_key is None:
+        stim_key = meta.get("stim_var") or "stim"
+    if resp_key is None:
+        resp_key = meta.get("resp_var") or "resp"
+    orientation = meta.get("orientation") or "epochs_x_time"
+
     d = _load_mat(data_path) if data_path.lower().endswith(".mat") else np.load(data_path)
     skipped = list(d.pop("__skipped__", [])) if isinstance(d, dict) else []
     if stim_key not in d or resp_key not in d:
@@ -191,16 +211,14 @@ def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp
     stim = np.ascontiguousarray(d[stim_key], dtype=float)
     resp = np.ascontiguousarray(d[resp_key], dtype=float)
 
-    info = {"source": data_path}
-    meta = {}
-    mp = meta_path or os.path.join(os.path.dirname(data_path), "meta.json")
-    if os.path.exists(mp):
-        try:
-            with open(mp) as fh:
-                meta = json.load(fh)
-        except Exception:
-            meta = {}
-    info["meta"] = mp if meta else None
+    if orientation == "time_x_epochs":
+        stim, resp = stim.T, resp.T
+    elif orientation != "epochs_x_time":
+        raise ValueError(f"orientation is {orientation!r}; expected 'epochs_x_time' or "
+                         "'time_x_epochs'")
+
+    info = {"source": data_path, "meta": mp if meta else None,
+            "stim_var": stim_key, "resp_var": resp_key, "orientation": orientation}
 
     if raw_dt is None:
         raw_dt = meta.get("sample_interval_s")
@@ -218,9 +236,11 @@ def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp
     if stim.shape != resp.shape:
         raise ValueError(f"stim {stim.shape} and resp {resp.shape} differ")
     if stim.shape[0] > stim.shape[1]:
+        other = "epochs_x_time" if orientation == "time_x_epochs" else "time_x_epochs"
         raise ValueError(
-            f"array is {stim.shape}: more epochs than time points, which almost always means "
-            "it is transposed. Expected (epochs x time).")
+            f"array is {stim.shape} after applying the declared layout ({orientation}): more "
+            f"epochs than time points, which almost always means it is stored transposed. If it "
+            f"really is, declare 'orientation' as {other!r}.")
 
     factor_f = dt / raw_dt
     factor = int(round(factor_f))
@@ -253,6 +273,16 @@ def load_epochs(data_path, dt=0.01, raw_dt=None, stim_key="stim", resp_key="resp
             f"or analog ({sorted(KNOWN_ANALOG)}) unit. Assuming ANALOG, so rectify=False. If this "
             "is a firing rate, pass the units explicitly -- rectifying an analog trace, or "
             "failing to rectify a rate, changes which model you are fitting.")
+    if rectify:
+        # Decided and reported, never applied -- same as the MATLAB loader, deliberately. The
+        # stored response is measured data and clipping it destroys real samples; the
+        # non-negativity constraint belongs on the model's prediction, which is a modelling
+        # choice this loader does not make. Silence here is how a rate ends up fitted by a
+        # model that predicts negative firing rates.
+        unresolved.append(
+            "response_units is a rate, so rectify=True -- but this loader does NOT clip the "
+            "response, and no fitter in this skill applies the flag. If negative predicted "
+            "rates matter for your model, enforce it in the prediction yourself.")
     if not meta:
         unresolved.append(
             f"no metadata file at {mp}: cell type, protocol and units are unknown, so nothing "

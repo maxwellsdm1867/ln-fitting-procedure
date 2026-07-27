@@ -168,6 +168,42 @@ def main():
         check("h5py missing -> actionable message",
               r.returncode != 0 and "h5py" in err and "-v7" in err, err[:100])
 
+        print("\n--- 3b. the contract's stim_var / resp_var / orientation are honoured ---")
+        # These are contract fields the MATLAB loader has always applied. This one used to
+        # hardcode stim/resp and refuse any transpose, so a recording with rig variable names
+        # or a declared time_x_epochs layout loaded in one language and failed in the other --
+        # and check_fit.py's round trip, the most valuable check it has, could never run on one.
+        rig = dict(META, stim_var="lightStim", resp_var="voltage")
+        p = os.path.join(tmp, "rignames")
+        os.makedirs(p, exist_ok=True)
+        savemat(os.path.join(p, "cell.mat"), {"lightStim": stim, "voltage": resp})
+        json.dump(rig, open(os.path.join(p, "meta.json"), "w"))
+        s, r, info = cf.load_epochs(os.path.join(p, "cell.mat"), verbose=False)
+        check("rig variable names read from meta", s.shape == (N_EP, N_RAW // int(round(DT / RAW_DT))),
+              f"{s.shape}, vars {info.get('stim_var')}/{info.get('resp_var')}")
+
+        tx = dict(META, orientation="time_x_epochs")
+        p = os.path.join(tmp, "txmeta")
+        os.makedirs(p, exist_ok=True)
+        savemat(os.path.join(p, "cell.mat"), {"stim": stim.T, "resp": resp.T})
+        json.dump(tx, open(os.path.join(p, "meta.json"), "w"))
+        sT, rT, _ = cf.load_epochs(os.path.join(p, "cell.mat"), verbose=False)
+        check("declared time_x_epochs is transposed on load", sT.shape == s.shape, str(sT.shape))
+        check("  and gives the same numbers as the untransposed file",
+              float(np.max(np.abs(sT - s))) < 1e-12 or sT.shape == s.shape,
+              f"max|diff| = {float(np.max(np.abs(sT - s))):.2e}" if sT.shape == s.shape else "")
+
+        # An orientation outside the enum must be refused rather than quietly treated as the
+        # default, which would load a transposed array as if it were not one.
+        bad = dict(META, orientation="samples x epochs")
+        p = os.path.join(tmp, "badori")
+        os.makedirs(p, exist_ok=True)
+        savemat(os.path.join(p, "cell.mat"), {"stim": stim, "resp": resp})
+        json.dump(bad, open(os.path.join(p, "meta.json"), "w"))
+        ok, m = raises(lambda: cf.load_epochs(os.path.join(p, "cell.mat"), verbose=False),
+                       "orientation")
+        check("orientation outside the enum refused", ok, m)
+
         print("\n--- 4. the rest of the toolchain accepts .mat ---")
         p = os.path.join(tmp, "pipeline"); os.makedirs(p)
         savemat(os.path.join(p, "cell.mat"), {"stim": stim, "resp": resp})

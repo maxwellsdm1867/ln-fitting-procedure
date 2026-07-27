@@ -71,6 +71,42 @@ function test_write_preflight()
     check('  the bad one is identified', sum([rep.ok]) == 2 && numel(rep) == 3, ...
           'two declared, one not');
 
+    fprintf('\n--- the declaration is checked AGAINST the array, not just for itself ---\n');
+    % A meta.json can be internally perfect and still contradict its own recording. Validating
+    % only the declaration passes this and then dies ten minutes later in cascadeLoadEpochs,
+    % which is the job preflight exists to save.
+    tx = fullfile(tmp, 'tx'); mkdir(tx);
+    txPath = fullfile(tx, 'cell.mat');
+    stimT = stim.'; respT = resp.';                       %#ok<NASGU> stored (time x epochs)
+    save(txPath, 'stimT', 'respT');
+    cascadeWriteContract(txPath, struct('sample_interval_s', 1e-4, 'response_units', 'mV', ...
+                                        'stim_var', 'stimT', 'resp_var', 'respT'));
+    [ok, rep] = cascadePreflight(txPath, 'verbose', false);
+    check('stored transpose blocked', ~ok, sprintf('%d reject(s)', numel(rep(1).rejects)));
+    check('  reject names the layout', ...
+          ~isempty(rep(1).rejects) && contains(rep(1).rejects{1}, 'time_x_epochs'), ...
+          rep(1).rejects{1}(1:min(64, end)));
+
+    cascadeWriteContract(txPath, struct('orientation', 'time_x_epochs'), 'overwrite', true);
+    [ok, ~] = cascadePreflight(txPath, 'verbose', false);
+    check('  declaring it clears the gate', ok, 'orientation time_x_epochs');
+
+    nv = fullfile(tmp, 'novar'); mkdir(nv);
+    nvPath = fullfile(nv, 'cell.mat');
+    save(nvPath, 'stim', 'resp');
+    cascadeWriteContract(nvPath, struct('sample_interval_s', 1e-4, 'response_units', 'mV', ...
+                                        'stim_var', 'lightStim'));
+    [ok, rep] = cascadePreflight(nvPath, 'verbose', false);
+    check('declared variable that is absent blocked', ~ok, ...
+          sprintf('%d reject(s)', numel(rep(1).rejects)));
+
+    good = fullfile(tmp, 'good2'); mkdir(good);
+    gPath = fullfile(good, 'cell.mat');
+    save(gPath, 'stim', 'resp');
+    cascadeWriteContract(gPath, struct('sample_interval_s', 1e-4, 'response_units', 'mV'));
+    [ok, ~] = cascadePreflight(gPath, 'verbose', false);
+    check('a sound recording still passes', ok, 'no false positive from the shape check');
+
     fprintf('\n%d passed, %d failed\n', pass, fail);
     rmdir(tmp, 's');
 

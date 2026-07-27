@@ -45,6 +45,12 @@ proposal = cascadeInferContract('cell.mat');  % what the file can and cannot tel
 cascadeWriteContract('cell.mat', fields)      % land the confirmed answers in meta.json
 ```
 
+`cascadePreflight` checks the declaration **and** opens the array header to check it against
+what is stored, because a `meta.json` can be internally perfect and still contradict its own
+recording — an array saved `(time x epochs)` while declaring the default `epochs_x_time` passes
+every check on the declaration alone and then dies at load. That is the ten-minute job this is
+supposed to save you, so the shape check belongs here rather than downstream.
+
 **When `proposal.mustAsk` is non-empty, ask with `AskUserQuestion`. Do not guess, and do not
 default.** Those fields are exactly the ones the file is silent about and the answer changes
 the numbers:
@@ -106,13 +112,20 @@ fitting there would resurrect exactly the maintained-parity problem the MATLAB p
 avoid.
 
 **The loader applies the recording's declaration** rather than guessing at it. Which variables
-hold stimulus and response, whether the arrays need transposing, the sampling interval, the
-response units and therefore both the scale factor and whether to rectify — all of it comes
-from `meta.json` via the contract, and the setup actually used is printed in one line. It
-refuses outright on the mistakes that are invisible downstream: a layout that contradicts the
-declaration, a `dt` that is not an integer multiple of the sampling interval, an unreadable
-file. Anything unresolved is asked rather than defaulted, because a silent default is a guess
-wearing a fact's clothes. Known and checked is quiet; unknown is loud.
+hold stimulus and response, whether the arrays need transposing, the sampling interval, and the
+response units and therefore the scale factor — all of it comes from `meta.json` via the
+contract, and the setup actually used is printed in one line. It refuses outright on the
+mistakes that are invisible downstream: a layout that contradicts the declaration, a `dt` that
+is not an integer multiple of the sampling interval, an unreadable file. Anything unresolved is
+asked rather than defaulted, because a silent default is a guess wearing a fact's clothes.
+Known and checked is quiet; unknown is loud.
+
+**`rectify` is the one field that is decided and reported but not applied.** A rate declares
+`rectify=true`, and neither loader clips the response — the stored response is measured data
+and clipping it would destroy real samples, so the non-negativity constraint belongs on the
+model's *prediction*, which is a modelling choice the contract does not make for you. Both
+loaders raise it as unresolved when it is true so it cannot pass unnoticed. If negative
+predicted rates matter for your model, enforce it in the prediction yourself.
 
 A `Stop` hook ships with the plugin and runs the check and the standard figures after any
 turn that writes a `results.json`, so this happens whether or not anyone remembered. A failed
